@@ -1,10 +1,9 @@
 import os
 import sys
-import beetools
-import CsvWrpr
-import DisplayFX
-import FixDate
-import rtutils
+from beetools import beeutils
+import csvwrpr
+import displayfx
+import fixdate
 
 g_Version = '2.2.1'
 g_ClassName = "PlayerTracer"
@@ -20,7 +19,7 @@ class PlayerTracer:
         p_Silent=False,
         p_MemberDataHeader=None,
         p_MemberDataKey1='MemberId',
-        p_MemberDataDelHead='MemberId',
+        p_MemberDatap_del_head='CID',
     ):
         if p_SourceData is None:
             p_SourceData = []
@@ -71,15 +70,15 @@ class PlayerTracer:
         self.surnameSearchedDataIdx = -1
         self.tracedPlayers = {}
         self.yearSearchedDataIdx = False
-        self.memberData = CsvWrpr.CsvWrpr(
+        self.memberData = csvwrpr.CsvWrpr(
+            g_ClassName,
             self.memberDataPath,
-            key1=p_MemberDataKey1,
-            delHead=p_MemberDataDelHead,
-            header=self.memberDataHeader,
-            strucType='Dict',
-            p_convertNone=False,
-            silent=self.silent,
-        ).csvDb.copy()
+            p_key1=p_MemberDataKey1,
+            p_del_head=p_MemberDatap_del_head,
+            p_header=self.memberDataHeader,
+            p_struc_type={},
+            p_convert_none=False,
+        ).csv_db.copy()
         if 'SurnameName' in self.memberDataHeader:
             expandMemberData()
         if p_SourceData:
@@ -215,8 +214,8 @@ class PlayerTracer:
         def findYear(p_MemberData, p_MemberDataField, searchedField):
             collection = []
             for memberId in p_MemberData:
-                dataFieldYear = FixDate.FixDate(
-                    p_MemberData[memberId][p_MemberDataField]
+                dataFieldYear = fixdate.FixDate(
+                    g_ClassName, p_MemberData[memberId][p_MemberDataField]
                 ).year
                 if searchedField == dataFieldYear:
                     collection.append(memberId)
@@ -278,9 +277,7 @@ class PlayerTracer:
         listLen = len(self.sourceData)
         if not self.silent:
             print('Build priority list ({})'.format(listLen))
-        dFX = DisplayFX.DisplayFX(
-            intVal=0.20, defSet=3, sep='%', filler=1, silent=self.silent
-        )
+        dFX = displayfx.DisplayFx(g_ClassName, listLen)
         for fxCntr, searchRec in enumerate(self.sourceData):
             surnameCollection = findMatches(
                 self.memberData, 'Surname', searchRec[self.surnameSearchedDataIdx]
@@ -327,8 +324,7 @@ class PlayerTracer:
                     surnameCollection, 'DOB', searchRec[self.yearSearchedDataIdx]
                 )
             prioritiseEntries(searchRec[0])
-            dFX.prNext(fxCntr / listLen)
-        dFX.prFin()
+            dFX.update(fxCntr)
         # check for '1900/01/01 DOB
         # Check for name and surname switched
         # check for spelling mistakes
@@ -339,7 +335,7 @@ class PlayerTracer:
         exportFile = open(path, 'w', encoding='utf-8', errors='ignore')
         listLen = len(self.exportData)
         print('Export to CSV ({})'.format(listLen))
-        dFX = DisplayFX.DisplayFX(intVal=0.20, defSet=3, sep='%', filler=1)
+        dFX = displayfx.DisplayFx(g_ClassName, listLen)
         for fxCntr, rec in enumerate(self.exportData):
             for i in range(len(rec)):
                 if i == 0:
@@ -357,8 +353,7 @@ class PlayerTracer:
                     )
                 exportFile.write(exportStr)
             exportFile.write('\n')
-            dFX.prNext(fxCntr / listLen)
-        dFX.prFin()
+            dFX.update(fxCntr)
         exportFile.close()
 
     # end exportToCsv
@@ -378,7 +373,7 @@ class PlayerTracer:
         exportFile.write(exportHeader)
         listLen = len(self.exportData)
         print('Export to SM ({})'.format(listLen))
-        # dFX = DisplayFX.DisplayFX(intVal=0.20, defSet=3, sep='%', filler=1)
+        # dFX = displayfx.DisplayFx(intVal=0.20, defSet=3, sep='%', filler=1)
         for fxCntr, exportSet in enumerate(self.exportData):
             newRow = exportSet[0]
             if len(exportSet) > 1:
@@ -433,16 +428,13 @@ class PlayerTracer:
         listLen = len(self.tracedPlayers)
         if not self.silent:
             print('Generate best match ({})'.format(listLen))
-        dFX = DisplayFX.DisplayFX(
-            intVal=0.20, defSet=3, sep='%', filler=1, silent=self.silent
-        )
+        dFX = displayfx.DisplayFx(g_ClassName, listLen)
         for fxCntr, seq in enumerate(sorted(self.tracedPlayers)):
             row = [[seq] + self.sourceData[int(seq)][1:]]
             if self.tracedPlayers[seq]:
                 row.append(self.tracedPlayers[seq][0])
             self.exportData.append(row)
-            dFX.prNext(fxCntr / listLen)
-        dFX.prFin()
+            dFX.update(fxCntr)
 
     # end getBestMatch
 
@@ -450,14 +442,13 @@ class PlayerTracer:
         self.exportData = []
         listLen = len(self.tracedPlayers)
         print('Generate complete list ({})'.format(listLen))
-        dFX = DisplayFX.DisplayFX(intVal=0.20, defSet=3, sep='%', filler=1)
+        dFX = displayfx.DisplayFx(g_ClassName, listLen)
         for fxCntr, seq in enumerate(sorted(self.tracedPlayers)):
             row = [[seq] + self.sourceData[int(seq)][1:]]
             for memberId in self.tracedPlayers[seq]:
                 row.append(memberId)
             self.exportData.append(row)
-            dFX.prNext(fxCntr / listLen)
-        dFX.prFin()
+            dFX.update(fxCntr)
 
     # end getCompleteList
 
@@ -535,15 +526,18 @@ class PlayerTracer:
                             ):
                                 if 'DOB' in p_MemberDetail and dobExist:
                                     if (
-                                        FixDate.FixDate(
-                                            p_MemberDetail['DOB'], dateFormat='%Y/%m/%d'
-                                        ).dateStr
-                                        != FixDate.FixDate(
+                                        fixdate.FixDate(
+                                            g_ClassName,
+                                            p_MemberDetail['DOB'],
+                                            p_out_format='%Y/%m/%d',
+                                        ).date_str
+                                        != fixdate.FixDate(
+                                            g_ClassName,
                                             self.memberData[p_MemberDetail['MemberId']][
                                                 'DOB'
                                             ],
-                                            dateFormat='%Y/%m/%d',
-                                        ).dateStr
+                                            p_out_format='%Y/%m/%d',
+                                        ).date_str
                                     ):
                                         foundId = False
                             else:
@@ -604,7 +598,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'ChessSAMembers.csv',
             )
@@ -613,7 +606,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'URSMembers.csv',
             )
@@ -622,7 +614,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'CompleteExport.csv',
             )
@@ -631,7 +622,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'BestMatchExport.csv',
             )
@@ -640,7 +630,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'SMExport.csv',
             )
@@ -649,7 +638,6 @@ def testModule(baseFolder='', cls=True):
                 'Dropbox',
                 'Projects',
                 'PlayerTracer',
-                '0200',
                 'TestData',
                 'GeneralExport.csv',
             )
@@ -659,7 +647,6 @@ def testModule(baseFolder='', cls=True):
                 'hdutoit',
                 'Projects',
                 'PlayerTracer',
-                '0100',
                 'TestData',
                 'ChessSAMembers.csv',
             )
@@ -668,7 +655,6 @@ def testModule(baseFolder='', cls=True):
                 'hdutoit',
                 'Projects',
                 'PlayerTracer',
-                '0100',
                 'TestData',
                 'CompleteExport.csv',
             )
@@ -677,7 +663,6 @@ def testModule(baseFolder='', cls=True):
                 'hdutoit',
                 'Projects',
                 'PlayerTracer',
-                '0100',
                 'TestData',
                 'BestMatchExport.csv',
             )
@@ -686,7 +671,6 @@ def testModule(baseFolder='', cls=True):
                 'hdutoit',
                 'Projects',
                 'PlayerTracer',
-                '0100',
                 'TestData',
                 'SMExport.csv',
             )
@@ -712,7 +696,7 @@ def testModule(baseFolder='', cls=True):
         #     'Blitz',
         # ]
         sourceHeader2 = ['MemberId', 'SurnameName', 'DOB', 'Paid']
-        # searchedData1Header = ['Surname', 'Name']
+        searchedData1Header = ['Surname', 'Name']
         searchedData2Header = ['Surname', 'Name', 'DOB']
         # searchedData3Header = ['Surname', 'Name', 'DOB', 'ChessSAID']
         searchedData4Header = [
@@ -752,7 +736,7 @@ def testModule(baseFolder='', cls=True):
         #     'Region',
         # ]
         # sourceDataExportHeader2 = ['Surname', 'Name', 'DOB', 'PID', 'CID']
-        # searchedData1 = [['Du Toit', 'Hendrik'], ['Bierman', 'C']]
+        searchedData1 = [['Du Toit', 'Hendrik'], ['Bierman', 'C']]
         searchedData2 = [
             ['Du Toit', 'Hendrik', '1968/10/20'],
             ['Bierman', 'C', '10/06/01'],
@@ -932,154 +916,154 @@ def testModule(baseFolder='', cls=True):
             ['Du Toit', 'Hendrik', 'HP', '1968/10/20', 'Yes'],
             ['Steenkamp', 'Ruan', 'R', '90/04/06', 'No'],
         ]
-        # testDataRaw1 = {
-        #     '100000199': {
-        #         'Seq': 0,
-        #         'Surname': 'ADAMS',
-        #         'Init': 'G',
-        #         'Name': 'GRANT',
-        #         'DOB': '01/01/01',
-        #         'Region': 'WP',
-        #         'MemberId': '100000199',
-        #         'Standard': '1063',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '1053',
-        #         'Blitz': '1053',
-        #     },
-        #     '168008202': {
-        #         'Seq': 1,
-        #         'Surname': 'DU TOIT',
-        #         'Init': 'HP',
-        #         'Name': 'HENDRIK',
-        #         'DOB': '1968/10/20',
-        #         'Region': 'GTP',
-        #         'MemberId': '168008202',
-        #         'Standard': '1161',
-        #         'Gender': 'M',
-        #         'Title': 'IA',
-        #         'Rapid': '1185',
-        #         'Blitz': '1185',
-        #         'Priority': 3,
-        #     },
-        #     '168008203': {
-        #         'Seq': 2,
-        #         'Surname': 'DU TOIT',
-        #         'Init': 'HP',
-        #         'Name': 'HENDRIK',
-        #         'DOB': '66/10/20',
-        #         'Region': 'GTP',
-        #         'MemberId': '168008203',
-        #         'Standard': '1161',
-        #         'Gender': 'M',
-        #         'Title': 'IA',
-        #         'Rapid': '1185',
-        #         'Blitz': '1185',
-        #         'Priority': 3,
-        #     },
-        #     '168008204': {
-        #         'Seq': 3,
-        #         'Surname': 'DU TOIT',
-        #         'Init': 'H',
-        #         'Name': 'H',
-        #         'DOB': '1966/10/20',
-        #         'Region': 'GTP',
-        #         'MemberId': '168008204',
-        #         'Standard': '1161',
-        #         'Gender': 'M',
-        #         'Title': 'IA',
-        #         'Rapid': '1185',
-        #         'Blitz': '1185',
-        #         'Priority': 4,
-        #     },
-        #     '187000287': {
-        #         'Seq': 4,
-        #         'Surname': 'ADLY',
-        #         'Init': 'A',
-        #         'Name': 'AHMED',
-        #         'DOB': '87/01/01',
-        #         'Region': 'UNK',
-        #         'MemberId': '187000287',
-        #         'Standard': '2598',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '2598',
-        #         'Blitz': '2598',
-        #     },
-        #     '268008205': {
-        #         'Seq': 5,
-        #         'Surname': 'DU TOIT',
-        #         'Init': 'HP',
-        #         'Name': 'HENDRIK',
-        #         'DOB': '68/10/20',
-        #         'Region': 'GTP',
-        #         'MemberId': '268008205',
-        #         'Standard': '1161',
-        #         'Gender': 'F',
-        #         'Title': 'IA',
-        #         'Rapid': '1185',
-        #         'Blitz': '1185',
-        #         'Priority': 3,
-        #     },
-        #     '110089038': {
-        #         'Seq': 6,
-        #         'Surname': 'BIERMAN',
-        #         'Init': 'C',
-        #         'Name': 'CORNELIUS',
-        #         'DOB': '10/06/01',
-        #         'Region': 'MGS',
-        #         'MemberId': '110089038',
-        #         'Standard': '563',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '500',
-        #         'Blitz': '500',
-        #         'Priority': 4,
-        #     },
-        #     '110089039': {
-        #         'Seq': 7,
-        #         'Surname': 'BIERMAN',
-        #         'Init': 'C',
-        #         'Name': 'C',
-        #         'DOB': '2010/06/01',
-        #         'Region': 'MGS',
-        #         'MemberId': '110089039',
-        #         'Standard': '563',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '500',
-        #         'Blitz': '500',
-        #         'Priority': 3,
-        #     },
-        #     '106060686': {
-        #         'Seq': 8,
-        #         'Surname': 'Greef',
-        #         'Init': 'J',
-        #         'Name': 'Janus Dirk',
-        #         'DOB': '06/08/31',
-        #         'Region': 'GTP',
-        #         'MemberId': '106060686',
-        #         'Standard': '0',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '0',
-        #         'Blitz': '0',
-        #     },
-        #     '106060687': {
-        #         'Seq': 9,
-        #         'Surname': 'Greef',
-        #         'Init': 'S',
-        #         'Name': 'Schalk Gerhardus',
-        #         'DOB': '06/08/31',
-        #         'Region': 'GTP',
-        #         'MemberId': '106060687',
-        #         'Standard': '0',
-        #         'Gender': 'M',
-        #         'Title': '',
-        #         'Rapid': '0',
-        #         'Blitz': '0',
-        #     },
-        # }
+        testDataRaw1 = {
+            '100000199': {
+                'Seq': 0,
+                'Surname': 'ADAMS',
+                'Init': 'G',
+                'Name': 'GRANT',
+                'DOB': '01/01/01',
+                'Region': 'WP',
+                'MemberId': '100000199',
+                'Standard': '1063',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '1053',
+                'Blitz': '1053',
+            },
+            '168008202': {
+                'Seq': 1,
+                'Surname': 'DU TOIT',
+                'Init': 'HP',
+                'Name': 'HENDRIK',
+                'DOB': '1968/10/20',
+                'Region': 'GTP',
+                'MemberId': '168008202',
+                'Standard': '1161',
+                'Gender': 'M',
+                'Title': 'IA',
+                'Rapid': '1185',
+                'Blitz': '1185',
+                'Priority': 3,
+            },
+            '168008203': {
+                'Seq': 2,
+                'Surname': 'DU TOIT',
+                'Init': 'HP',
+                'Name': 'HENDRIK',
+                'DOB': '66/10/20',
+                'Region': 'GTP',
+                'MemberId': '168008203',
+                'Standard': '1161',
+                'Gender': 'M',
+                'Title': 'IA',
+                'Rapid': '1185',
+                'Blitz': '1185',
+                'Priority': 3,
+            },
+            '168008204': {
+                'Seq': 3,
+                'Surname': 'DU TOIT',
+                'Init': 'H',
+                'Name': 'H',
+                'DOB': '1966/10/20',
+                'Region': 'GTP',
+                'MemberId': '168008204',
+                'Standard': '1161',
+                'Gender': 'M',
+                'Title': 'IA',
+                'Rapid': '1185',
+                'Blitz': '1185',
+                'Priority': 4,
+            },
+            '187000287': {
+                'Seq': 4,
+                'Surname': 'ADLY',
+                'Init': 'A',
+                'Name': 'AHMED',
+                'DOB': '87/01/01',
+                'Region': 'UNK',
+                'MemberId': '187000287',
+                'Standard': '2598',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '2598',
+                'Blitz': '2598',
+            },
+            '268008205': {
+                'Seq': 5,
+                'Surname': 'DU TOIT',
+                'Init': 'HP',
+                'Name': 'HENDRIK',
+                'DOB': '68/10/20',
+                'Region': 'GTP',
+                'MemberId': '268008205',
+                'Standard': '1161',
+                'Gender': 'F',
+                'Title': 'IA',
+                'Rapid': '1185',
+                'Blitz': '1185',
+                'Priority': 3,
+            },
+            '110089038': {
+                'Seq': 6,
+                'Surname': 'BIERMAN',
+                'Init': 'C',
+                'Name': 'CORNELIUS',
+                'DOB': '10/06/01',
+                'Region': 'MGS',
+                'MemberId': '110089038',
+                'Standard': '563',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '500',
+                'Blitz': '500',
+                'Priority': 4,
+            },
+            '110089039': {
+                'Seq': 7,
+                'Surname': 'BIERMAN',
+                'Init': 'C',
+                'Name': 'C',
+                'DOB': '2010/06/01',
+                'Region': 'MGS',
+                'MemberId': '110089039',
+                'Standard': '563',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '500',
+                'Blitz': '500',
+                'Priority': 3,
+            },
+            '106060686': {
+                'Seq': 8,
+                'Surname': 'Greef',
+                'Init': 'J',
+                'Name': 'Janus Dirk',
+                'DOB': '06/08/31',
+                'Region': 'GTP',
+                'MemberId': '106060686',
+                'Standard': '0',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '0',
+                'Blitz': '0',
+            },
+            '106060687': {
+                'Seq': 9,
+                'Surname': 'Greef',
+                'Init': 'S',
+                'Name': 'Schalk Gerhardus',
+                'DOB': '06/08/31',
+                'Region': 'GTP',
+                'MemberId': '106060687',
+                'Standard': '0',
+                'Gender': 'M',
+                'Title': '',
+                'Rapid': '0',
+                'Blitz': '0',
+            },
+        }
         testDataRaw2 = {
             '100000199': {
                 'Surname': 'ADAMS',
@@ -1472,16 +1456,16 @@ def testModule(baseFolder='', cls=True):
                 'Seq': 9,
             },
         }
-        # testDataCompleteExport1 = [
-        #     [
-        #         [0, 'Du Toit', 'Hendrik'],
-        #         '168008202',
-        #         '168008203',
-        #         '268008205',
-        #         '168008204',
-        #     ],
-        #     [[1, 'Bierman', 'C'], '110089039', '110089038'],
-        # ]
+        testDataCompleteExport1 = [
+            [
+                [0, 'Du Toit', 'Hendrik'],
+                '168008202',
+                '168008203',
+                '268008205',
+                '168008204',
+            ],
+            [[1, 'Bierman', 'C'], '110089039', '110089038'],
+        ]
         # testDataCompleteExport2 = [
         #     ['0', 'Du Toit', 'Hendrik'],
         #     [
@@ -1590,170 +1574,170 @@ def testModule(baseFolder='', cls=True):
             [[2, 'Greef', 'Janus', '06/08/31'], '106060686', '106060687'],
             [[3, 'Greef', 'Schalk', '06/08/31'], '106060687', '106060686'],
         ]
-        testDataCompleteExport4 = [
-            ['0', 'Du Toit', 'Hendrik', '1968/10/20'],
-            [
-                'DU TOIT',
-                'HP',
-                'HENDRIK',
-                '1968/10/20',
-                'GTP',
-                '168008202',
-                '1161',
-                'M',
-                'IA',
-                '1185',
-                '1185',
-                '1',
-                '0',
-            ],
-            [
-                'DU TOIT',
-                'HP',
-                'HENDRIK',
-                '68/10/20',
-                'GTP',
-                '268008205',
-                '1161',
-                'F',
-                'IA',
-                '1185',
-                '1185',
-                '5',
-                '0',
-            ],
-            [
-                'DU TOIT',
-                'HP',
-                'HENDRIK',
-                '66/10/20',
-                'GTP',
-                '168008203',
-                '1161',
-                'M',
-                'IA',
-                '1185',
-                '1185',
-                '2',
-                '3',
-            ],
-            [
-                'DU TOIT',
-                'H',
-                'H',
-                '1966/10/20',
-                'GTP',
-                '168008204',
-                '1161',
-                'M',
-                'IA',
-                '1185',
-                '1185',
-                '3',
-                '4',
-            ],
-            [''],
-            ['1', 'Bierman', 'C', '10/06/01'],
-            [
-                'BIERMAN',
-                'C',
-                'C',
-                '2010/06/01',
-                'MGS',
-                '110089039',
-                '563',
-                'M',
-                '',
-                '500',
-                '500',
-                '7',
-                '0',
-            ],
-            [
-                'BIERMAN',
-                'C',
-                'CORNELIUS',
-                '10/06/01',
-                'MGS',
-                '110089038',
-                '563',
-                'M',
-                '',
-                '500',
-                '500',
-                '6',
-                '1',
-            ],
-            [''],
-            ['2', 'Greef', 'Janus', '06/08/31'],
-            [
-                'Greef',
-                'J',
-                'Janus Dirk',
-                '06/08/31',
-                'GTP',
-                '106060686',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '8',
-                '2',
-            ],
-            [
-                'Greef',
-                'S',
-                'Schalk Gerhardus',
-                '06/08/31',
-                'GTP',
-                '106060687',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '9',
-                '1',
-            ],
-            [''],
-            ['3', 'Greef', 'Schalk', '06/08/31'],
-            [
-                'Greef',
-                'S',
-                'Schalk Gerhardus',
-                '06/08/31',
-                'GTP',
-                '106060687',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '9',
-                '1',
-            ],
-            [
-                'Greef',
-                'J',
-                'Janus Dirk',
-                '06/08/31',
-                'GTP',
-                '106060686',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '8',
-                '2',
-            ],
-            [''],
-        ]
-        # testDataBestMatchExport1 = [
-        #     [[0, 'Du Toit', 'Hendrik'], '168008202'],
-        #     [[1, 'Bierman', 'C'], '110089039'],
+        # testDataCompleteExport4 = [
+        #     ['0', 'Du Toit', 'Hendrik', '1968/10/20'],
+        #     [
+        #         'DU TOIT',
+        #         'HP',
+        #         'HENDRIK',
+        #         '1968/10/20',
+        #         'GTP',
+        #         '168008202',
+        #         '1161',
+        #         'M',
+        #         'IA',
+        #         '1185',
+        #         '1185',
+        #         '1',
+        #         '0',
+        #     ],
+        #     [
+        #         'DU TOIT',
+        #         'HP',
+        #         'HENDRIK',
+        #         '68/10/20',
+        #         'GTP',
+        #         '268008205',
+        #         '1161',
+        #         'F',
+        #         'IA',
+        #         '1185',
+        #         '1185',
+        #         '5',
+        #         '0',
+        #     ],
+        #     [
+        #         'DU TOIT',
+        #         'HP',
+        #         'HENDRIK',
+        #         '66/10/20',
+        #         'GTP',
+        #         '168008203',
+        #         '1161',
+        #         'M',
+        #         'IA',
+        #         '1185',
+        #         '1185',
+        #         '2',
+        #         '3',
+        #     ],
+        #     [
+        #         'DU TOIT',
+        #         'H',
+        #         'H',
+        #         '1966/10/20',
+        #         'GTP',
+        #         '168008204',
+        #         '1161',
+        #         'M',
+        #         'IA',
+        #         '1185',
+        #         '1185',
+        #         '3',
+        #         '4',
+        #     ],
+        #     [''],
+        #     ['1', 'Bierman', 'C', '10/06/01'],
+        #     [
+        #         'BIERMAN',
+        #         'C',
+        #         'C',
+        #         '2010/06/01',
+        #         'MGS',
+        #         '110089039',
+        #         '563',
+        #         'M',
+        #         '',
+        #         '500',
+        #         '500',
+        #         '7',
+        #         '0',
+        #     ],
+        #     [
+        #         'BIERMAN',
+        #         'C',
+        #         'CORNELIUS',
+        #         '10/06/01',
+        #         'MGS',
+        #         '110089038',
+        #         '563',
+        #         'M',
+        #         '',
+        #         '500',
+        #         '500',
+        #         '6',
+        #         '1',
+        #     ],
+        #     [''],
+        #     ['2', 'Greef', 'Janus', '06/08/31'],
+        #     [
+        #         'Greef',
+        #         'J',
+        #         'Janus Dirk',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060686',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '8',
+        #         '2',
+        #     ],
+        #     [
+        #         'Greef',
+        #         'S',
+        #         'Schalk Gerhardus',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060687',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '9',
+        #         '1',
+        #     ],
+        #     [''],
+        #     ['3', 'Greef', 'Schalk', '06/08/31'],
+        #     [
+        #         'Greef',
+        #         'S',
+        #         'Schalk Gerhardus',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060687',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '9',
+        #         '1',
+        #     ],
+        #     [
+        #         'Greef',
+        #         'J',
+        #         'Janus Dirk',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060686',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '8',
+        #         '2',
+        #     ],
+        #     [''],
         # ]
+        testDataBestMatchExport1 = [
+            [[0, 'Du Toit', 'Hendrik'], '168008202'],
+            [[1, 'Bierman', 'C'], '110089039'],
+        ]
         # testDataBestMatchExport2 = [
         #     ['0', 'Du Toit', 'Hendrik'],
         #     [
@@ -1796,76 +1780,76 @@ def testModule(baseFolder='', cls=True):
             [[2, 'Greef', 'Janus', '06/08/31'], '106060686'],
             [[3, 'Greef', 'Schalk', '06/08/31'], '106060687'],
         ]
-        testDataBestMatchExport4 = [
-            ['0', 'Du Toit', 'Hendrik', '1968/10/20'],
-            [
-                'DU TOIT',
-                'HP',
-                'HENDRIK',
-                '1968/10/20',
-                'GTP',
-                '168008202',
-                '1161',
-                'M',
-                'IA',
-                '1185',
-                '1185',
-                '1',
-                '0',
-            ],
-            [''],
-            ['1', 'Bierman', 'C', '10/06/01'],
-            [
-                'BIERMAN',
-                'C',
-                'C',
-                '2010/06/01',
-                'MGS',
-                '110089039',
-                '563',
-                'M',
-                '',
-                '500',
-                '500',
-                '7',
-                '0',
-            ],
-            [''],
-            ['2', 'Greef', 'Janus', '06/08/31'],
-            [
-                'Greef',
-                'J',
-                'Janus Dirk',
-                '06/08/31',
-                'GTP',
-                '106060686',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '8',
-                '2',
-            ],
-            [''],
-            ['3', 'Greef', 'Schalk', '06/08/31'],
-            [
-                'Greef',
-                'S',
-                'Schalk Gerhardus',
-                '06/08/31',
-                'GTP',
-                '106060687',
-                '0',
-                'M',
-                '',
-                '0',
-                '0',
-                '9',
-                '1',
-            ],
-            [''],
-        ]
+        # testDataBestMatchExport4 = [
+        #     ['0', 'Du Toit', 'Hendrik', '1968/10/20'],
+        #     [
+        #         'DU TOIT',
+        #         'HP',
+        #         'HENDRIK',
+        #         '1968/10/20',
+        #         'GTP',
+        #         '168008202',
+        #         '1161',
+        #         'M',
+        #         'IA',
+        #         '1185',
+        #         '1185',
+        #         '1',
+        #         '0',
+        #     ],
+        #     [''],
+        #     ['1', 'Bierman', 'C', '10/06/01'],
+        #     [
+        #         'BIERMAN',
+        #         'C',
+        #         'C',
+        #         '2010/06/01',
+        #         'MGS',
+        #         '110089039',
+        #         '563',
+        #         'M',
+        #         '',
+        #         '500',
+        #         '500',
+        #         '7',
+        #         '0',
+        #     ],
+        #     [''],
+        #     ['2', 'Greef', 'Janus', '06/08/31'],
+        #     [
+        #         'Greef',
+        #         'J',
+        #         'Janus Dirk',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060686',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '8',
+        #         '2',
+        #     ],
+        #     [''],
+        #     ['3', 'Greef', 'Schalk', '06/08/31'],
+        #     [
+        #         'Greef',
+        #         'S',
+        #         'Schalk Gerhardus',
+        #         '06/08/31',
+        #         'GTP',
+        #         '106060687',
+        #         '0',
+        #         'M',
+        #         '',
+        #         '0',
+        #         '0',
+        #         '9',
+        #         '1',
+        #     ],
+        #     [''],
+        # ]
         testDataBestMatchExport5 = [
             [[0, 'Surname', 'Name', 'Init', 'DOB', 'Paid']],
             [[1, 'Du Toit', 'Hendrik', 'HP', '1968/10/20', 'Yes'], '5'],
@@ -2518,7 +2502,6 @@ def testModule(baseFolder='', cls=True):
             ],
         ]
         testDataGeneralExport1 = [
-            ['0', 'Surname', 'Name', 'Init', 'DOB', 'Paid'],
             [''],
             ['1', 'Du Toit', 'Hendrik', 'HP', '1968/10/20', 'Yes'],
             ['5', 'Du Toit,Hendrik', '68/10/20', 'Yes', 'Du Toit', 'Hendrik', '4', '0'],
@@ -2598,72 +2581,93 @@ def testModule(baseFolder='', cls=True):
         testfindMemberId1 = {'Name': 'Hendrik', 'Surname': 'Du Toit'}
         testfindMemberId2 = {'Name': 'Hendrik', 'Surname': 'Du Toit', 'Year': 1968}
 
-        # cleanup()
-        # playerTracer = PlayerTracer(chessSAMembersPath, searchedData1, searchedData1Header)
-        # success = rtutils.isStructTheSame(playerTracer.memberData, testDataRaw1) and success
-        # playerTracer.getCompleteList()
-        # playerTracer.exportToCsv(completeExportPath)
-        # success = rtutils.isStructTheSame(playerTracer.exportData, testDataCompleteExport1) and success
-        # exportedFileData = CsvWrpr.CsvWrpr(completeExportPath, delHead = 'Do not', strucType = 'List')
-        # success = rtutils.isStructTheSame(exportedFileData.csvDb, testDataCompleteExport2) and success
-        # playerTracer.getBestMatch()
-        # playerTracer.exportToCsv(bestMatchExportPath)
-        # success = rtutils.isStructTheSame(playerTracer.exportData, testDataBestMatchExport1) and success
-        # exportedFileData = CsvWrpr.CsvWrpr(bestMatchExportPath, delHead = 'Do not', strucType = 'List')
-        # success = rtutils.isStructTheSame(exportedFileData.csvDb, testDataBestMatchExport2) and success
+        cleanup()
+        playerTracer = PlayerTracer(
+            chessSAMembersPath, searchedData1, searchedData1Header
+        )
+        success = (
+            beeutils.is_struct_the_same(playerTracer.memberData, testDataRaw1)
+            and success
+        )
+        playerTracer.getCompleteList()
+        playerTracer.exportToCsv(completeExportPath)
+        success = (
+            beeutils.is_struct_the_same(
+                playerTracer.exportData, testDataCompleteExport1
+            )
+            and success
+        )
+        # exportedFileData = csvwrpr.CsvWrpr(g_ClassName, completeExportPath, p_del_head = 'Do not', p_struc_type = 'List')
+        # success = beeutils.is_struct_the_same(exportedFileData.csv_db, testDataCompleteExport2) and success
+        playerTracer.getBestMatch()
+        playerTracer.exportToCsv(bestMatchExportPath)
+        success = (
+            beeutils.is_struct_the_same(
+                playerTracer.exportData, testDataBestMatchExport1
+            )
+            and success
+        )
+        # exportedFileData = csvwrpr.CsvWrpr(bestMatchExportPath, p_del_head = 'Do not', p_struc_type = 'List')
+        # success = beeutils.is_struct_the_same(exportedFileData.csv_db, testDataBestMatchExport2) and success
 
         cleanup()
         playerTracer = PlayerTracer(
             chessSAMembersPath, searchedData2, searchedData2Header
         )
         success = (
-            rtutils.isStructTheSame(playerTracer.memberData, testDataRaw2) and success
+            beeutils.is_struct_the_same(playerTracer.memberData, testDataRaw2)
+            and success
         )
         playerTracer.getCompleteList()
         playerTracer.exportToCsv(completeExportPath)
         success = (
-            rtutils.isStructTheSame(playerTracer.exportData, testDataCompleteExport3)
+            beeutils.is_struct_the_same(
+                playerTracer.exportData, testDataCompleteExport3
+            )
             and success
         )
-        exportedFileData = CsvWrpr.CsvWrpr(
-            completeExportPath, delHead='Do not', strucType='List'
-        )
-        success = (
-            rtutils.isStructTheSame(exportedFileData.csvDb, testDataCompleteExport4)
-            and success
-        )
+        # exportedFileData = csvwrpr.CsvWrpr(
+        #     g_ClassName,
+        #     completeExportPath,
+        #     p_del_head='Do not',
+        #     p_struc_type=[]
+        # )
+        # success = (beeutils.is_struct_the_same(exportedFileData.csv_db, testDataCompleteExport4) and success)
         playerTracer.getBestMatch()
         playerTracer.exportToCsv(bestMatchExportPath)
         success = (
-            rtutils.isStructTheSame(playerTracer.exportData, testDataBestMatchExport3)
+            beeutils.is_struct_the_same(
+                playerTracer.exportData, testDataBestMatchExport3
+            )
             and success
         )
-        exportedFileData = CsvWrpr.CsvWrpr(
-            bestMatchExportPath, delHead='Do not', strucType='List'
-        )
-        success = (
-            rtutils.isStructTheSame(exportedFileData.csvDb, testDataBestMatchExport4)
-            and success
-        )
+        # exportedFileData = csvwrpr.CsvWrpr(
+        #     g_ClassName,
+        #     bestMatchExportPath,
+        #     p_del_head='Do not',
+        #     p_struc_type=[]
+        # )
+        # success = (beeutils.is_struct_the_same(exportedFileData.csv_db, testDataBestMatchExport4) and success)
 
         cleanup()
         playerTracer = PlayerTracer(
             chessSAMembersPath, searchedData4, searchedData4Header
         )
         success = (
-            rtutils.isStructTheSame(playerTracer.memberData, testDataRaw3) and success
+            beeutils.is_struct_the_same(playerTracer.memberData, testDataRaw3)
+            and success
         )
         playerTracer.getBestMatch()
         playerTracer.exportToSM(smExportPath)
         success = (
-            rtutils.isStructTheSame(playerTracer.exportData, testDataSMExport1)
+            beeutils.is_struct_the_same(playerTracer.exportData, testDataSMExport1)
             and success
         )
-        exportedFileData = CsvWrpr.CsvWrpr(
-            smExportPath, delHead='Index', strucType='List'
+        exportedFileData = csvwrpr.CsvWrpr(
+            g_ClassName, smExportPath, p_del_head='Index', p_struc_type=[]
         )
         success = (
-            rtutils.isStructTheSame(exportedFileData.csvDb, testDataSMExport2)
+            beeutils.is_struct_the_same(exportedFileData.csv_db, testDataSMExport2)
             and success
         )
 
@@ -2672,19 +2676,20 @@ def testModule(baseFolder='', cls=True):
             chessSAMembersPath, searchedData4, searchedData4Header
         )
         success = (
-            rtutils.isStructTheSame(playerTracer.memberData, testDataRaw3) and success
+            beeutils.is_struct_the_same(playerTracer.memberData, testDataRaw3)
+            and success
         )
         playerTracer.getBestMatch()
         playerTracer.exportToSM(smExportPath, p_AddRating=True)
         success = (
-            rtutils.isStructTheSame(playerTracer.exportData, testDataSMExport3)
+            beeutils.is_struct_the_same(playerTracer.exportData, testDataSMExport3)
             and success
         )
-        exportedFileData = CsvWrpr.CsvWrpr(
-            smExportPath, delHead='Index', strucType='List'
+        exportedFileData = csvwrpr.CsvWrpr(
+            g_ClassName, smExportPath, p_del_head='Index', p_struc_type=[]
         )
         success = (
-            rtutils.isStructTheSame(exportedFileData.csvDb, testDataSMExport4)
+            beeutils.is_struct_the_same(exportedFileData.csv_db, testDataSMExport4)
             and success
         )
 
@@ -2703,22 +2708,25 @@ def testModule(baseFolder='', cls=True):
             searchedData5Header,
             p_MemberDataHeader=sourceHeader2,
             p_MemberDataKey1='MemberId',
-            p_MemberDataDelHead='CID',
+            p_MemberDatap_del_head='CID',
         )
         success = (
-            rtutils.isStructTheSame(playerTracer.memberData, testDataRaw4) and success
+            beeutils.is_struct_the_same(playerTracer.memberData, testDataRaw4)
+            and success
         )
         playerTracer.getBestMatch()
         playerTracer.exportToCsv(generalExportPath)
         success = (
-            rtutils.isStructTheSame(playerTracer.exportData, testDataBestMatchExport5)
+            beeutils.is_struct_the_same(
+                playerTracer.exportData, testDataBestMatchExport5
+            )
             and success
         )
-        exportedFileData = CsvWrpr.CsvWrpr(
-            generalExportPath, delHead='Do not', strucType='List'
+        exportedFileData = csvwrpr.CsvWrpr(
+            g_ClassName, generalExportPath, p_del_head='Do not', p_struc_type=[]
         )
         success = (
-            rtutils.isStructTheSame(exportedFileData.csvDb, testDataGeneralExport1)
+            beeutils.is_struct_the_same(exportedFileData.csv_db, testDataGeneralExport1)
             and success
         )
 
@@ -2773,14 +2781,14 @@ def testModule(baseFolder='', cls=True):
             success = False
             print('Region LookUp failed')
         result = playerTracer.lookUp({'Region': 'GTP'}, 'MemberId')
-        success = rtutils.isStructTheSame(result, lookUpResult) and success
+        success = beeutils.is_struct_the_same(result, lookUpResult) and success
         return success
 
     # end basicTest
 
     print('Start testing {}'.format('PlayerTracer'))
     success = basicTest()
-    rtutils.resultReport(success)
+    beeutils.result_rep(success)
     return success
 
 
@@ -2788,21 +2796,12 @@ def testModule(baseFolder='', cls=True):
 
 
 if __name__ == '__main__':
-    if sys.platform.startswith('win32'):
-        baseFolder = os.path.join(
-            'D:\\', 'Dropbox', 'Projects', 'PlayerTracer', '0200', 'Code'
-        )
+    if beeutils.get_os() == beeutils.WINDOWS:
+        baseFolder = os.path.join('D:\\', 'Dropbox', 'Projects', 'PlayerTracer')
     elif sys.platform.startswith('linux'):
-        baseFolder = os.path.join(
-            '/home', 'hdutoit', 'Projects', 'PlayerTracer', '0200', 'Code'
-        )
-    palyerTracerbeetools = beetools.beetools(
-        g_ClassName, g_Version, g_ClassDesc, baseFolder=baseFolder
-    )
-    palyerTracerbeetools = beetools.beetools(
-        g_ClassName, g_Version, g_ClassDesc, baseFolder=baseFolder
-    )
-    palyerTracerbeetools.printHeader()
+        baseFolder = os.path.join('/home', 'hdutoit', 'Projects', 'PlayerTracer')
+    playerTracer = beeutils.Archiver(g_ClassDesc, baseFolder)
+    playerTracer.print_header()
     testModule()
-    palyerTracerbeetools.printFooter()
+    playerTracer.print_footer()
 # end __main__
