@@ -1,6 +1,5 @@
 '''Insert header Here'''
 
-
 from pathlib import Path
 from .playertracer import *
 
