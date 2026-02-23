@@ -4,7 +4,6 @@ from pathlib import Path
 from beetools.beearchiver import Archiver
 import playertracer
 
-
 _PROJ_DESC = __doc__.split('\n')[0]
 _PROJ_PATH = Path(__file__)
 
